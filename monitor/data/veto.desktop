@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Veto
+Exec=veto
+Comment=Veto
+Icon=veto
+Terminal=false
+Categories=Game;ArcadeGame;

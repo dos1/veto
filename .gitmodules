@@ -1,0 +1,12 @@
+[submodule "libsuperderpy"]
+	path = monitor/libsuperderpy
+	url = https://github.com/dos1/libsuperderpy.git
+[submodule "utils"]
+	path = monitor/utils
+	url = https://github.com/dos1/libsuperderpy-utils
+[submodule "monitor/libsuperderpy"]
+	path = monitor/libsuperderpy
+	url = https://github.com/dos1/libsuperderpy.git
+[submodule "monitor/utils"]
+	path = monitor/utils
+	url = https://github.com/dos1/libsuperderpy-utils
