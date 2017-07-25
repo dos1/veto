@@ -67,7 +67,7 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	// Called once, when the gamestate library is being loaded.
 	// Good place for allocating memory, loading bitmaps etc.
-	//al_set_new_bitmap_flags(ALLEGRO_MIN_LINEAR | ALLEGRO_MAG_LINEAR);
+	al_set_new_bitmap_flags(ALLEGRO_MIN_LINEAR | ALLEGRO_MAG_LINEAR);
 
 	struct GamestateResources *data = malloc(sizeof(struct GamestateResources));
 	data->bmp = al_load_bitmap(GetDataFilePath(game, "holypangolin.png"));

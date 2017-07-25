@@ -21,9 +21,9 @@
 
 struct CommonResources {
 		// Fill in with common data accessible from all gamestates.
+		bool ws;
 		struct lws_context *ws_context;
 		bool ws_connected;
-		bool ws_enabled;
 };
 
 typedef enum {

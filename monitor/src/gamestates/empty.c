@@ -25,32 +25,36 @@ struct GamestateResources {
 		// This struct is for every resource allocated and used by your gamestate.
 		// It gets created on load and then gets passed around to all other function calls.
 		ALLEGRO_FONT *font;
-		int blink_counter;
+
+		int counter;
+
+		ALLEGRO_BITMAP *bg, *galaz, *pienki;
 };
 
 int Gamestate_ProgressCount = 1; // number of loading steps as reported by Gamestate_Load
 
 void Gamestate_Logic(struct Game *game, struct GamestateResources* data) {
 	// Called 60 times per second. Here you should do all your game logic.
-	data->blink_counter++;
-	if (data->blink_counter >= 60) {
-		data->blink_counter = 0;
+	if (!game->data->ws_connected) {
+		return;
 	}
+	data->counter++;
 }
 
 void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	// Called as soon as possible, but no sooner than next Gamestate_Logic call.
 	// Draw everything to the screen here.
 
+	al_draw_bitmap(data->bg, 0, 0, 0);
+	al_draw_bitmap(data->pienki, 0, 0, 0);
+	al_draw_rotated_bitmap(data->galaz, 375, 170, 614+375, -200+170 + cos((data->counter / 256.0) + 1.2) * 4, sin(data->counter / 512.0) / 16.0, 0);
+
 	if (!game->data->ws_connected) {
-		al_draw_text(data->font, al_map_rgb(255,255,255), game->viewport.width / 2, game->viewport.height / 2 - 50,
+		al_draw_filled_rectangle(0, 0, 1920, 1080, al_map_rgba(0,0,0,128));
+		al_draw_text(data->font, al_map_rgb(255,255,255), game->viewport.width / 2, game->viewport.height / 2 - 150,
 		           ALLEGRO_ALIGN_CENTRE, "DISCONNECTED");
 	}
 
-	if (data->blink_counter < 50) {
-		al_draw_text(data->font, al_map_rgb(255,255,255), game->viewport.width / 2, game->viewport.height / 2,
-		             ALLEGRO_ALIGN_CENTRE, "Nothing to see here, move along!");
-	}
 }
 
 void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, ALLEGRO_EVENT *ev) {
@@ -68,14 +72,23 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		WebSocketDisconnect(game);
 	}
 
+	if (ev->type == VETO_EVENT_INCOMING_MESSAGE) {
+		PrintConsole(game, "GOT MSG %s", ev->user.data1);
+	}
+
 }
 
 void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	// Called once, when the gamestate library is being loaded.
 	// Good place for allocating memory, loading bitmaps etc.
 	struct GamestateResources *data = malloc(sizeof(struct GamestateResources));
-	data->font = al_create_builtin_font();
+	data->font = al_load_font(GetDataFilePath(game, "fonts/NotoSerif-Regular.ttf"), 192, 0);
 	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
+
+	data->bg = al_load_bitmap(GetDataFilePath(game, "bg.png"));
+	data->galaz = al_load_bitmap(GetDataFilePath(game, "galaz.png"));
+	data->pienki = al_load_bitmap(GetDataFilePath(game, "pienki.png"));
+
 	return data;
 }
 
@@ -89,7 +102,7 @@ void Gamestate_Unload(struct Game *game, struct GamestateResources* data) {
 void Gamestate_Start(struct Game *game, struct GamestateResources* data) {
 	// Called when this gamestate gets control. Good place for initializing state,
 	// playing music etc.
-	data->blink_counter = 0;
+	data->counter = 0;
 	WebSocketConnect(game);
 }
 

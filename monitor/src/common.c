@@ -27,7 +27,7 @@ static int WebSocketCallback( struct lws *wsi, enum lws_callback_reasons reason,
 	struct Game *game = user;
 	ALLEGRO_EVENT ev;
 
-	if (game && !game->data->ws_enabled) {
+	if (game && !game->data->ws) {
 		return 1; // disconnect
 	}
 
@@ -67,7 +67,9 @@ static struct lws_protocols protocols[] = {
 };
 
 bool GlobalEventHandler(struct Game *game, ALLEGRO_EVENT *event) {
-	lws_service(game->data->ws_context, 0);
+	if (game->data->ws) {
+		lws_service(game->data->ws_context, 0);
+	}
 
 	if (event->type == VETO_EVENT_DISCONNECTED) {
 		if (game->data->ws_connected) {
@@ -76,9 +78,9 @@ bool GlobalEventHandler(struct Game *game, ALLEGRO_EVENT *event) {
 			PrintConsole(game, "[ws] Connection failed!");
 		}
 		game->data->ws_connected = false;
-		if (game->data->ws_enabled) {
+		if (game->data->ws) {
 			// reconnecting
-			game->data->ws_enabled = false;
+			game->data->ws = false;
 			//WebSocketConnect(game); TODO: schedule reconnection
 		}
 	}
@@ -93,13 +95,29 @@ bool GlobalEventHandler(struct Game *game, ALLEGRO_EVENT *event) {
 		PrintConsole(game, "[ws] Connecting...");
 	}
 
+	if ((event->type==ALLEGRO_EVENT_KEY_DOWN) && (event->keyboard.keycode == ALLEGRO_KEY_F)) {
+		game->config.fullscreen = !game->config.fullscreen;
+		if (game->config.fullscreen) {
+			SetConfigOption(game, "SuperDerpy", "fullscreen", "1");
+			al_hide_mouse_cursor(game->display);
+		} else {
+			SetConfigOption(game, "SuperDerpy", "fullscreen", "0");
+			al_show_mouse_cursor(game->display);
+		}
+		al_set_display_flag(game->display, ALLEGRO_FULLSCREEN_WINDOW, game->config.fullscreen);
+		SetupViewport(game, game->viewport_config);
+		PrintConsole(game, "Fullscreen toggled");
+	}
+
 	return false;
 }
 
 void WebSocketConnect(struct Game *game) {
-	if (game->data->ws_enabled) {
+	if (game->data->ws) {
 		return;
 	}
+
+	lws_set_log_level(1 | 2, NULL); // ERR | WARN
 
 	struct lws_context_creation_info info;
 	memset(&info, 0, sizeof(info));
@@ -124,7 +142,7 @@ void WebSocketConnect(struct Game *game) {
 	ccinfo.ietf_version_or_minus_one = -1;
 	ccinfo.userdata = game;
 
-	game->data->ws_enabled = true;
+	game->data->ws = true;
 
 	ALLEGRO_EVENT ev;
 	ev.user.type = VETO_EVENT_CONNECTING;
@@ -134,12 +152,12 @@ void WebSocketConnect(struct Game *game) {
 }
 
 void WebSocketDisconnect(struct Game *game) {
-	if (!game->data->ws_enabled) {
+	if (!game->data->ws) {
 		return;
 	}
 
 	lws_context_destroy(game->data->ws_context);
-	game->data->ws_enabled = false;
+	game->data->ws = false;
 }
 
 struct CommonResources* CreateGameData(struct Game *game) {
