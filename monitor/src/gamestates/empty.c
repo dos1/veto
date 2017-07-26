@@ -31,12 +31,22 @@ struct GamestateResources {
 
 		ALLEGRO_BITMAP *bg, *galaz, *pienki;
 
+		bool started;
+		bool deputyShown;
+		bool billShown;
+
 		int players;
 		char* status;
 		int votesFor, votesAgainst, abstrained, timeLeft;
 
+		bool showFor, showAgainst, showAbstrained;
+
 		struct Timeline *timeline;
 		struct Timeline *statustm;
+
+		struct Character *bobr, *borsuk, *deputy, *jezyk, *lisek;
+
+		int speechdelay;
 
 		bool skip;
 };
@@ -55,6 +65,7 @@ bool Speak(struct Game *game, struct TM_Action *action, enum TM_ActionState stat
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	ALLEGRO_AUDIO_STREAM *stream = TM_GetArg(action->arguments, 1);
 	//char *text = TM_GetArg(action->arguments, 2);
+	struct Character *character = TM_GetArg(action->arguments, 2);
 
 	if (state == TM_ACTIONSTATE_INIT) {
 		al_set_audio_stream_playing(stream, false);
@@ -63,6 +74,7 @@ bool Speak(struct Game *game, struct TM_Action *action, enum TM_ActionState stat
 
 	if (state == TM_ACTIONSTATE_START) {
 		data->skip = false;
+		data->speechdelay = 8;
 		//al_rewind_audio_stream(stream);
 		al_attach_audio_stream_to_mixer(stream, game->audio.voice);
 		al_set_audio_stream_playing(stream, true);
@@ -71,11 +83,21 @@ bool Speak(struct Game *game, struct TM_Action *action, enum TM_ActionState stat
 	}
 
 	if (state == TM_ACTIONSTATE_RUNNING) {
+		data->speechdelay--;
+		if (data->speechdelay==0) {
+			data->speechdelay = 8;
+			if (character) {
+				character->angle = ((rand() / (float)RAND_MAX) * 2 - 1) / 4.0;
+			}
+		}
 		return !al_get_audio_stream_playing(stream) || data->skip;
 	}
 
 	if (state == TM_ACTIONSTATE_DESTROY) {
 		al_destroy_audio_stream(stream);
+		if (character) {
+			character->angle = 0;
+		}
 		//data->text = NULL;
 	}
 	return false;
@@ -84,7 +106,9 @@ bool Speak(struct Game *game, struct TM_Action *action, enum TM_ActionState stat
 bool ShowDeputy(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "showdeputy");
+		data->deputyShown = true;
+		char *deputies[] = { "pang", "ping1", "ping2", "zubr" };
+		SelectSpritesheet(game, data->deputy, deputies[rand() % (sizeof(deputies) / sizeof(char*))]);
 	}
 	return true;
 }
@@ -92,7 +116,16 @@ bool ShowDeputy(struct Game *game, struct TM_Action *action, enum TM_ActionState
 bool ShowBill(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "showbill");
+		data->billShown = true;
+		data->timeLeft = -1;
+	}
+	return true;
+}
+
+bool HideBill(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
+	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
+	if (state == TM_ACTIONSTATE_RUNNING) {
+		data->billShown = false;
 	}
 	return true;
 }
@@ -100,7 +133,7 @@ bool ShowBill(struct Game *game, struct TM_Action *action, enum TM_ActionState s
 bool HideDeputy(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "hidedeupty");
+		data->deputyShown = false;
 	}
 	return true;
 }
@@ -108,7 +141,6 @@ bool HideDeputy(struct Game *game, struct TM_Action *action, enum TM_ActionState
 bool StartVote(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "startvote");
 		WebSocketSend(game, "{\"type\":\"voting\"}");
 	}
 	return true;
@@ -117,7 +149,7 @@ bool StartVote(struct Game *game, struct TM_Action *action, enum TM_ActionState 
 bool Start(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "start");
+		data->started = true;
 	}
 	return true;
 }
@@ -125,7 +157,8 @@ bool Start(struct Game *game, struct TM_Action *action, enum TM_ActionState stat
 bool ShowFor(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "showfor");
+		SelectSpritesheet(game, data->borsuk, "up");
+		data->showFor = true;
 	}
 	return true;
 }
@@ -133,7 +166,8 @@ bool ShowFor(struct Game *game, struct TM_Action *action, enum TM_ActionState st
 bool ShowAgainst(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "showagainst");
+		SelectSpritesheet(game, data->jezyk, "up");
+		data->showAgainst = true;
 	}
 	return true;
 }
@@ -141,7 +175,8 @@ bool ShowAgainst(struct Game *game, struct TM_Action *action, enum TM_ActionStat
 bool ShowAbstrained(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "showabstrained");
+		SelectSpritesheet(game, data->lisek, "up");
+		data->showAbstrained = true;
 	}
 	return true;
 }
@@ -149,21 +184,32 @@ bool ShowAbstrained(struct Game *game, struct TM_Action *action, enum TM_ActionS
 bool HideResults(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
-		PrintConsole(game, "hideresults");
+		SelectSpritesheet(game, data->lisek, "down");
+		data->showFor = false;
+		SelectSpritesheet(game, data->borsuk, "down");
+		data->showAgainst = false;
+		SelectSpritesheet(game, data->jezyk, "down");
+		data->showAbstrained = false;
+
 	}
 	return true;
 }
 
 void StartLegislativeProcess(struct Game* game, struct GamestateResources* data) {
 	TM_AddAction(data->timeline, &ShowDeputy, TM_AddToArgs(NULL, 1, data), "showdeputy");
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/read.flac"), 4, 1024)), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/read.flac"), 4, 1024), data->bobr), "speak");
+	TM_AddDelay(data->timeline, 100);
 	TM_AddAction(data->timeline, &ShowBill, TM_AddToArgs(NULL, 1, data), "showbill");
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/bill.flac"), 4, 1024)), "speak");
+	TM_AddDelay(data->timeline, 100);
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/bill.flac"), 4, 1024), data->deputy), "speak");
+	TM_AddDelay(data->timeline, 500);
 	TM_AddAction(data->timeline, &HideDeputy, TM_AddToArgs(NULL, 1, data), "hidedeputy");
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/voting.flac"), 4, 1024)), "speak");
+	TM_AddDelay(data->timeline, 200);
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/voting.flac"), 4, 1024), data->bobr), "speak");
+	TM_AddDelay(data->timeline, 100);
 	TM_AddAction(data->timeline, &StartVote, TM_AddToArgs(NULL, 1, data), "startvote");
 }
 
@@ -182,8 +228,46 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	// Draw everything to the screen here.
 
 	al_draw_bitmap(data->bg, 0, 0, 0);
+
+	if ((data->started) && (data->deputyShown)) {
+		DrawCharacter(game, data->deputy, al_map_rgb(255,255,255), 0);
+	}
+
 	al_draw_bitmap(data->pienki, 0, 0, 0);
+
+	if (data->started) {
+		DrawCharacter(game, data->bobr, al_map_rgb(255,255,255), 0);
+		DrawCharacter(game, data->jezyk, al_map_rgb(255,255,255), 0);
+		DrawCharacter(game, data->borsuk, al_map_rgb(255,255,255), 0);
+
+		if (data->showFor) {
+			al_draw_textf(data->font, al_map_rgb(0,0,0), 254, 85, ALLEGRO_ALIGN_CENTER, "%d", data->votesFor);
+		}
+		if (data->showAgainst) {
+			al_draw_textf(data->font, al_map_rgb(0,0,0), 635, 160, ALLEGRO_ALIGN_CENTER, "%d", data->votesAgainst);
+		}
+
+	}
+
+
 	al_draw_rotated_bitmap(data->galaz, 375, 170, 614+375, -200+170 + cos((data->counter / 256.0) + 1.2) * 4, sin(data->counter / 512.0) / 16.0, 0);
+
+	if (data->started) {
+		DrawCharacter(game, data->lisek, al_map_rgb(255,255,255), 0);
+		if (data->showAbstrained) {
+			al_draw_textf(data->font, al_map_rgb(0,0,0), 1080, 25, ALLEGRO_ALIGN_CENTER, "%d", data->abstrained);
+		}
+
+	}
+
+	if (data->billShown) {
+		al_draw_filled_rectangle(0, 0, 1920/1.4, 1080, al_map_rgba(220, 220, 220, 220));
+
+		if (data->timeLeft >= 0) {
+			al_draw_textf(data->font, al_map_rgb(0,0,0), 1920/2.8, 700, ALLEGRO_ALIGN_CENTER, "%d", data->timeLeft);
+		}
+	}
+
 
 	if (!game->data->ws_connected) {
 		al_draw_filled_rectangle(0, 0, 1920, 1080, al_map_rgba(0,0,0,128));
@@ -227,6 +311,9 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_V)) {
 		WebSocketSend(game, "{\"type\":\"voting\"}");
 	}
+	if ((ev->type==ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_FULLSTOP)) {
+		data->skip = true;
+	}
 
 	if (ev->type == WEBSOCKET_EVENT_CONNECTED) {
 		WebSocketSend(game, "{\"type\":\"monitor\"}");
@@ -261,8 +348,9 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		TM_CleanQueue(data->timeline);
 
 		TM_AddAction(data->timeline, &Start, TM_AddToArgs(NULL, 1, data), "start");
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/start.flac"), 4, 1024)), "speak");
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/start.flac"), 4, 1024), data->bobr), "speak");
+		TM_AddDelay(data->timeline, 200);
 
 		StartLegislativeProcess(game, data);
 	}
@@ -283,32 +371,44 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 
 	}
 	if (ev->type == VETO_EVENT_VOTE_RESULT) {
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/end.flac"), 4, 1024)), "speak");
+		TM_AddAction(data->timeline, &HideBill, TM_AddToArgs(NULL, 1, data), "hidebill");
+		TM_AddDelay(data->timeline, 100);
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/end.flac"), 4, 1024), data->bobr), "speak");
+		TM_AddDelay(data->timeline, 100);
 		TM_AddAction(data->timeline, &ShowFor, TM_AddToArgs(NULL, 1, data), "showfor");
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/for.flac"), 4, 1024)), "speak");
+		TM_AddDelay(data->timeline, 100);
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/for.flac"), 4, 1024), data->bobr), "speak");
+		TM_AddDelay(data->timeline, 100);
 		TM_AddAction(data->timeline, &ShowAgainst, TM_AddToArgs(NULL, 1, data), "showfor");
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/against.flac"), 4, 1024)), "speak");
+		TM_AddDelay(data->timeline, 100);
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/against.flac"), 4, 1024), data->bobr), "speak");
+		TM_AddDelay(data->timeline, 100);
 		TM_AddAction(data->timeline, &ShowAbstrained, TM_AddToArgs(NULL, 1, data), "showabstrained");
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/abstrained.flac"), 4, 1024)), "speak");
+		TM_AddDelay(data->timeline, 100);
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/abstrained.flac"), 4, 1024), data->bobr), "speak");
+		TM_AddDelay(data->timeline, 300);
 		if (ev->user.data1) {
-			TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-			                                     al_load_audio_stream(GetDataFilePath(game, "sounds/passed.flac"), 4, 1024)), "speak");
+			TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+			                                     al_load_audio_stream(GetDataFilePath(game, "sounds/passed.flac"), 4, 1024), data->bobr), "speak");
 		} else {
-			TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-			                                     al_load_audio_stream(GetDataFilePath(game, "sounds/rejected.flac"), 4, 1024)), "speak");
+			TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+			                                     al_load_audio_stream(GetDataFilePath(game, "sounds/rejected.flac"), 4, 1024), data->bobr), "speak");
 		}
+		TM_AddDelay(data->timeline, 100);
 		TM_AddAction(data->timeline, &HideResults, TM_AddToArgs(NULL, 1, data), "hideresults");
+		TM_AddDelay(data->timeline, 100);
 		StartLegislativeProcess(game, data);
 	}
 	if (ev->type == VETO_EVENT_VETO) {
 		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
 		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/veto.flac"), 4, 1024)), "speak");
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/rejected.flac"), 4, 1024)), "speak");
+		TM_AddDelay(data->timeline, 500);
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/rejected.flac"), 4, 1024), data->bobr), "speak");
 		StartLegislativeProcess(game, data);
 	}
 }
@@ -328,6 +428,46 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	data->timeline = TM_Init(game, "timeline");
 	data->statustm = TM_Init(game, "status");
 
+
+//	struct Character *bobr, *borsuk, *deputy, *jezyk, *lisek;
+
+	data->bobr = CreateCharacter(game, "bobr");
+	data->borsuk = CreateCharacter(game, "borsuk");
+	data->deputy = CreateCharacter(game, "deputy");
+	data->jezyk = CreateCharacter(game, "jezyk");
+	data->lisek = CreateCharacter(game, "lisek");
+
+	RegisterSpritesheet(game, data->bobr, "stand");
+	RegisterSpritesheet(game, data->borsuk, "up");
+	RegisterSpritesheet(game, data->borsuk, "down");
+	RegisterSpritesheet(game, data->jezyk, "up");
+	RegisterSpritesheet(game, data->jezyk, "down");
+	RegisterSpritesheet(game, data->lisek, "up");
+	RegisterSpritesheet(game, data->lisek, "down");
+	RegisterSpritesheet(game, data->deputy, "pang");
+	RegisterSpritesheet(game, data->deputy, "ping1");
+	RegisterSpritesheet(game, data->deputy, "ping2");
+	RegisterSpritesheet(game, data->deputy, "zubr");
+
+	LoadSpritesheets(game, data->bobr);
+	LoadSpritesheets(game, data->borsuk);
+	LoadSpritesheets(game, data->jezyk);
+	LoadSpritesheets(game, data->lisek);
+	LoadSpritesheets(game, data->deputy);
+
+	SelectSpritesheet(game, data->bobr, "stand");
+	SelectSpritesheet(game, data->borsuk, "down");
+	SelectSpritesheet(game, data->jezyk, "down");
+	SelectSpritesheet(game, data->lisek, "down");
+	SelectSpritesheet(game, data->deputy, "pang");
+
+	SetCharacterPosition(game, data->borsuk, 51, 23, 0);
+	SetCharacterPosition(game, data->jezyk, 487, 146, 0);
+	SetCharacterPosition(game, data->lisek, 839, 0, 0);
+
+	SetCharacterPosition(game, data->deputy, 1409, 1, 0);
+	SetCharacterPosition(game, data->bobr, 1623, 572, 0);
+
 	return data;
 }
 
@@ -345,7 +485,13 @@ void Gamestate_Start(struct Game *game, struct GamestateResources* data) {
 	WebSocketConnect(game);
 	data->players = 0;
 	data->status = NULL;
-
+	data->started = false;
+	data->deputyShown = false;
+	data->billShown = false;
+	data->timeLeft = -1;
+	data->showAbstrained = false;
+	data->showAgainst = false;
+	data->showFor = false;
 }
 
 void Gamestate_Stop(struct Game *game, struct GamestateResources* data) {

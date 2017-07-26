@@ -259,7 +259,7 @@ void WebSocketConnect(struct Game *game) {
 
 	ccinfo.context = game->data->ws_context;
 	ccinfo.address = "localhost";
-	ccinfo.port = 8888;
+	ccinfo.port = 8889;
 	ccinfo.path = "/";
 	ccinfo.host = lws_canonical_hostname(game->data->ws_context);
 	ccinfo.origin = "veto-monitor";
