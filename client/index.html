@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Veto!</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="jquery.js"></script>
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+ .screen {
+   display: none;
+   border: 5px solid black;
+   padding: 50px 20px;
+   width: 100%;
+   height: 100vh;
+   box-sizing: border-box;
+   margin: 0;
+   overflow: hidden;
+   overflow-y: auto;
+   position: absolute;
+   top: 0;
+   left: 0;
+ }
+ .header {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    height: 40px;
+    background-color: red;
+    left: 0;
+    z-index: 10;
+  }
+  .footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 40px;
+    background-color: yellow;
+    left: 0;
+    z-index: 10;
+  }
+  #kitty {
+    margin-bottom: 50px;
+  }
+
+  .button {
+    width: 100px;
+    height: 100px;
+    background-color: red;
+    display: inline-block;
+  }
+  .button.active {
+    background-color: green;
+  }
+</style>
+
+</head>
+<body>
+
+<div class="header">
+  <div class="user"></div>
+</div>
+
+<div class="screen login">
+  Your name: <input maxlength="24" type="text" id="nick" /> <input type="button" id="nicksend" value="Save" />
+</div>
+<div class="screen vote">
+ <div class="button for">For</div>
+ <div class="button abstain active">Abstain</div>
+ <div class="button against">Against</div>
+
+ <div class="button veto">VETO!</div>
+
+ <div class="time"></div>
+</div>
+<div class="screen wait">
+  <p>No voting active, have a kitty instead.</p>
+  <img src="https://thecatapi.com/api/images/get?format=src&size=small" id="kitty" />
+  <!-- <img src="https://thecatapi.com/api/images/get?format=src&size=med" id="kitty" /> -->
+</div>
+<div class="screen end">
+  <p>VETO!</p>
+  <p>Congratulations! You have finished your game!</p>
+</div>
+
+<div class="screen connecting">Connecting...</div>
+
+<div class="footer">
+  <div class="score"></div>
+</div>
+
+<script>
+
+if (!String.prototype.startsWith) {
+    String.prototype.startsWith = function(searchString, position){
+      return this.substr(position || 0, searchString.length) === searchString;
+  };
+}
+
+$(function() {
+  $('.screen').hide();
+
+  var socket = new WebSocket("ws://192.168.0.143:8888/", "veto");
+
+  $('.screen.connecting').show();
+
+  socket.onopen = function() {
+
+    $('.screen').hide();
+
+    var cookieValue = document.cookie.replace(/(?:(?:^|.*;\s*)connectionCookie\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+
+    if (cookieValue) {
+      // reconnect
+      socket.send(JSON.stringify({type:'reconnect', cookie: cookieValue}));  
+
+    } else {
+      $('.screen.login').show();
+    }
+      $('.screen.login #nicksend').on('click', function() {
+        // login
+        var nick = $('#nick').val();
+        if (nick==="") return;
+
+        socket.send(JSON.stringify({type:'join', nick: nick}));
+        setNick(nick);
+        setScore('0');
+        $('.screen').hide();
+        $('.screen.wait').show();
+        $('#kitty').attr('src', 'https://thecatapi.com/api/images/get?format=src&size=small&timestamp=' + Date.now());
+      });
+   
+
+  };
+
+  $('.button.for').on('click', function() {
+      $('.button.active').removeClass('active');
+      $('.button.for').addClass('active');
+      socket.send(JSON.stringify({type: 'vote', choice: true}));
+  });
+
+  $('.button.against').on('click', function() {
+      $('.button.active').removeClass('active');
+      $('.button.against').addClass('active');
+      socket.send(JSON.stringify({type: 'vote', choice: false}));
+  });
+
+  $('.button.abstain').on('click', function() {
+      $('.button.active').removeClass('active');
+      $('.button.abstain').addClass('active');
+      socket.send(JSON.stringify({type: 'vote', choice: null}));
+  });
+
+  $('.button.veto').on('click', function() {
+      socket.send(JSON.stringify({type: 'veto'}));
+  });
+
+  var setNick = function(nick) {
+    $('.user').text('Deputy ' + nick);
+  };
+
+  var setScore = function(score) {
+    $('.score').text('Score: ' + score);
+  };
+
+  socket.onmessage = function(event) {
+    var data = event.data;
+
+    console.log(data);
+
+    if (data.startsWith('cookie:')) {
+      var cookie = data.split(':')[1];
+      document.cookie = 'connectionCookie=' + cookie;
+      return;
+    }
+    if (data === "err") {
+      $('.screen').hide();
+      $('.screen.login').show();
+      return;
+    }
+    if (data === "ok") {
+      $('.screen').hide();
+      $('.screen.wait').show();
+        $('#kitty').attr('src', 'https://thecatapi.com/api/images/get?format=src&size=small&timestamp=' + Date.now());
+      return;
+    }
+    if (data === "canVeto") {
+      $('.button.veto').show();
+      return;
+    }
+    if (data === "end") {
+      $('.screen').hide();
+      $('.screen.end').show();
+      return;
+    }
+    if (data.startsWith("nick")) {
+      setNick(data.split(':')[1]);
+      return;
+    }
+    if (data.startsWith("score")) {
+      setScore(data.split(':')[1]);
+      return;
+    }
+    if (data.startsWith("C")) {
+      $('.time').text(data.slice(1));
+      return;
+    }
+    if (data === "V") {
+      $('.screen').hide();
+      $('.screen.vote').show();
+      $('.button.active').removeClass('active');
+      $('.button.abstain').addClass('active');
+      $('.button.veto').hide();
+      return;
+    }
+    if (data.startsWith("E")) {
+      $('.screen').hide();
+      $('.screen.wait').show();
+        $('#kitty').attr('src', 'https://thecatapi.com/api/images/get?format=src&size=small&timestamp=' + Date.now());
+      return;
+    }
+    if (data.startsWith("v")) {
+      $('.screen').hide();
+      $('.screen.wait').show();
+        $('#kitty').attr('src', 'https://thecatapi.com/api/images/get?format=src&size=small&timestamp=' + Date.now());
+      return;
+    }
+  };
+
+  socket.onerror = socket.onclose = function() {
+    $('.screen').hide();
+    $('.screen.connecting').show();
+    setTimeout(function() { window.location.reload(); }, 3000);
+  };
+
+}); 
+</script>
+
+</body>
+</html>

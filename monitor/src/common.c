@@ -22,6 +22,17 @@
 #include <libsuperderpy.h>
 #include <libwebsockets.h>
 
+static int WebSocketCallback( struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len );
+
+static struct lws_protocols protocols[] = {
+  {
+		.name = "veto",
+		.callback = WebSocketCallback,
+		.rx_buffer_size = 16
+  },
+  { .callback = NULL } /* terminator */
+};
+
 static int WebSocketCallback( struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len ) {
 
 	struct Game *game = user;
@@ -33,20 +44,36 @@ static int WebSocketCallback( struct lws *wsi, enum lws_callback_reasons reason,
 
 	switch(reason) {
 		case LWS_CALLBACK_CLIENT_ESTABLISHED:
-			ev.user.type = VETO_EVENT_CONNECTED;
+			ev.user.type = WEBSOCKET_EVENT_CONNECTED;
 			al_emit_user_event(&(game->event_source), &ev, NULL);
 			break;
 
+		case LWS_CALLBACK_CLIENT_WRITEABLE:
+			if (game->data->ws_buffer) {
+				PrintConsole(game, "[ws] sending %s", game->data->ws_buffer);
+
+				int len = strlen(game->data->ws_buffer);
+				unsigned char* buffer = malloc((LWS_SEND_BUFFER_PRE_PADDING + len + LWS_SEND_BUFFER_POST_PADDING) * sizeof(char));
+				memcpy(buffer + LWS_SEND_BUFFER_PRE_PADDING, game->data->ws_buffer, len);
+
+				lws_write(wsi, buffer + LWS_SEND_BUFFER_PRE_PADDING, len, LWS_WRITE_TEXT);
+
+				free(buffer);
+				free(game->data->ws_buffer);
+				game->data->ws_buffer = NULL;
+			}
+			break;
+
 		case LWS_CALLBACK_CLIENT_RECEIVE:
-			ev.user.type = VETO_EVENT_INCOMING_MESSAGE;
-			ev.user.data1 = (intptr_t) in;
+			ev.user.type = WEBSOCKET_EVENT_INCOMING_MESSAGE;
+			ev.user.data1 = (intptr_t) strdup(in); // TODO: memory leak
 			ev.user.data2 = len;
 			al_emit_user_event(&(game->event_source), &ev, NULL);
 			break;
 
 		case LWS_CALLBACK_CLOSED:
 		case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-			ev.user.type = VETO_EVENT_DISCONNECTED;
+			ev.user.type = WEBSOCKET_EVENT_DISCONNECTED;
 			al_emit_user_event(&(game->event_source), &ev, NULL);
 			break;
 
@@ -57,21 +84,118 @@ static int WebSocketCallback( struct lws *wsi, enum lws_callback_reasons reason,
 	return 0;
 }
 
-static struct lws_protocols protocols[] = {
-  {
-		.name = "veto",
-		.callback = WebSocketCallback,
-		.rx_buffer_size = 16
-  },
-  { .callback = NULL } /* terminator */
-};
+void VetoProtocolHandler(struct Game *game, char* msg, int len) {
+
+	ALLEGRO_EVENT ev;
+	/*
+			ev.user.type = VETO_EVENT_INCOMING_MESSAGE;
+			ev.user.data1 = (intptr_t) in;
+			ev.user.data2 = len;
+			al_emit_user_event(&(game->event_source), &ev, NULL);
+	*/
+
+	if (!msg) {
+		return;
+	}
+	if (!msg[0]) {
+		return;
+	}
+
+	if (msg[0] == 'S') {
+		ev.user.type = VETO_EVENT_START;
+		PrintConsole(game, "[veto] start");
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'V') {
+		ev.user.type = VETO_EVENT_VOTING;
+		PrintConsole(game, "[veto] voting");
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'C') {
+		ev.user.type = VETO_EVENT_COUNTER;
+		ev.user.data1 = atoi(msg+1);
+		PrintConsole(game, "[veto] counter %d", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'F') {
+		ev.user.type = VETO_EVENT_VOTES_FOR;
+		ev.user.data1 = atoi(msg+1);
+		PrintConsole(game, "[veto] votes for %d", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'A') {
+		ev.user.type = VETO_EVENT_VOTES_AGAINST;
+		ev.user.data1 = atoi(msg+1);
+		PrintConsole(game, "[veto] votes against %d", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'N') {
+		ev.user.type = VETO_EVENT_VOTES_ABSTAINED;
+		ev.user.data1 = atoi(msg+1);
+		PrintConsole(game, "[veto] votes abstained %d", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'E') {
+		ev.user.type = VETO_EVENT_VOTE_RESULT;
+		ev.user.data1 = (msg[1] == 'F');
+		PrintConsole(game, "[veto] vote result %d", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'V') {
+		ev.user.type = VETO_EVENT_VETO;
+		ev.user.data1 = (intptr_t)strdup(msg+1);
+		PrintConsole(game, "[veto] veto from %s", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+
+	if (msg[0] == 'P') {
+		ev.user.type = VETO_EVENT_PLAYERS;
+		ev.user.data1 = atoi(msg+1);
+		PrintConsole(game, "[veto] player count %d", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'J') {
+		ev.user.type = VETO_EVENT_JOIN;
+		ev.user.data1 = (intptr_t)strdup(msg+1);
+		PrintConsole(game, "[veto] player %s joined", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'L') {
+		ev.user.type = VETO_EVENT_LEAVE;
+		ev.user.data1 = (intptr_t)strdup(msg+1);
+		PrintConsole(game, "[veto] player %s left", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'R') {
+		ev.user.type = VETO_EVENT_RECONNECT;
+		ev.user.data1 = (intptr_t)strdup(msg+1);
+		PrintConsole(game, "[veto] player %s reconnected", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+
+	// TODO: fix memory leaks in strdup, possibly using event destructors
+
+	return;
+}
 
 bool GlobalEventHandler(struct Game *game, ALLEGRO_EVENT *event) {
 	if (game->data->ws) {
 		lws_service(game->data->ws_context, 0);
 	}
 
-	if (event->type == VETO_EVENT_DISCONNECTED) {
+	if (event->type == WEBSOCKET_EVENT_DISCONNECTED) {
 		if (game->data->ws_connected) {
 			PrintConsole(game, "[ws] Disconnected!");
 		} else {
@@ -84,14 +208,15 @@ bool GlobalEventHandler(struct Game *game, ALLEGRO_EVENT *event) {
 			//WebSocketConnect(game); TODO: schedule reconnection
 		}
 	}
-	if (event->type == VETO_EVENT_CONNECTED) {
+	if (event->type == WEBSOCKET_EVENT_CONNECTED) {
 		PrintConsole(game, "[ws] Connected!");
 		game->data->ws_connected = true;
 	}
-	if (event->type == VETO_EVENT_INCOMING_MESSAGE) {
+	if (event->type == WEBSOCKET_EVENT_INCOMING_MESSAGE) {
 		PrintConsole(game, "[ws] Incoming message (%d): %s", event->user.data2, event->user.data1);
+		VetoProtocolHandler(game, (char*)event->user.data1, event->user.data2);
 	}
-	if (event->type == VETO_EVENT_CONNECTING) {
+	if (event->type == WEBSOCKET_EVENT_CONNECTING) {
 		PrintConsole(game, "[ws] Connecting...");
 	}
 
@@ -143,12 +268,23 @@ void WebSocketConnect(struct Game *game) {
 	ccinfo.userdata = game;
 
 	game->data->ws = true;
+	game->data->ws_buffer = NULL;
 
 	ALLEGRO_EVENT ev;
-	ev.user.type = VETO_EVENT_CONNECTING;
+	ev.user.type = WEBSOCKET_EVENT_CONNECTING;
 	al_emit_user_event(&(game->event_source), &ev, NULL);
 
-	lws_client_connect_via_info(&ccinfo);
+	game->data->ws_socket = lws_client_connect_via_info(&ccinfo);
+}
+
+void WebSocketSend(struct Game *game, char* msg) {
+	if (game->data->ws_buffer) {
+		free(game->data->ws_buffer);
+		game->data->ws_buffer = NULL;
+	}
+	game->data->ws_buffer = strdup(msg);
+
+	lws_callback_on_writable(game->data->ws_socket);
 }
 
 void WebSocketDisconnect(struct Game *game) {

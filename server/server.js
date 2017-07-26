@@ -8,7 +8,7 @@
    N{1} - {1} players didn't vote
    E{1} - voting ended; {1} is a result: either F (for) or A (against)
       
-   V{1} - player with nick {1} used veto
+   v{1} - player with nick {1} used veto
    
  events sent only to monitor:
    P{1} - currently {1} players are connected
@@ -19,6 +19,7 @@
 
  events sent only to players:
    cookie:{1} - cookie for reconnecting
+   nick:{1} - nick sent after reconnecting
    end - this player has ended their game
    score:{1} - current score of the player
    TODO: canVeto - player can veto in this round
@@ -56,7 +57,8 @@ let canVeto = false;
 let state = {
   monitor: null,
   voting: false,
-  counter: null
+  counter: null,
+  started: false
 };
 
 let countVotes = function() {
@@ -109,12 +111,31 @@ let countVotes = function() {
 };
 
 let startGame = function() {
-  console.log('START');
+  if (state.started) {
+    console.log('RESTART');
+  } else {
+    console.log('START');
+  }
+  state.started = true;
   wss.broadcast('S');
+  
+  state.counter = 0;
+  state.voting = false;
+  
+  players.forEach(function(player) {
+      player.vote = null;
+      player.vetoRight = false;
+      player.score = 0;
+      player.ended = false;
+  });
+  
   round=0;
 };
 
 let startVote = function() {
+    
+    if (state.voting) return;
+    
     console.log('VOTE round ' + round);
 
   players.forEach(function(player) {
@@ -192,6 +213,17 @@ wss.on('connection', function connection(ws) {
     if (data.type == 'monitor') {
       state.monitor = ws;
       console.log('monitor registered');
+      
+     let playerCount = 0;
+      wss.clients.forEach(function each(client) {
+        if (client.readyState === WebSocket.OPEN) {
+          if ((client.data) && (client.data.connected)) {
+            playerCount++;
+          }
+        }
+      });
+    state.monitor.send('P' + playerCount);
+
     }
 
     if (data.type == 'join') {
@@ -228,7 +260,7 @@ wss.on('connection', function connection(ws) {
       // TODO: FIXME: search for cookie and reattach
       players.forEach(function(player) {
         if (data.cookie == player.cookie) {
-          ws.data = player;   
+          ws.data = player;
         }
       });
       
@@ -238,6 +270,8 @@ wss.on('connection', function connection(ws) {
       } else {
           ws.send('ok');
       }
+      ws.data.connected = true;
+      ws.data.ws = ws;
         
       let playerCount = 0;
       wss.clients.forEach(function each(client) {
@@ -249,8 +283,10 @@ wss.on('connection', function connection(ws) {
       });
       if (state.monitor) {
         state.monitor.send('P' + playerCount);
-        state.monitor.send('R' + data.nick);
+        state.monitor.send('R' + ws.data.name);
       }
+      ws.send('score:' + ws.data.score);
+      ws.send('nick:' + ws.data.name);
       if (ws.data.ended) ws.send('end');
     }
 
@@ -270,7 +306,7 @@ wss.on('connection', function connection(ws) {
           canVeto = false;
           console.log(ws.data.name + ' said VETO!')
           ws.data.ended = true;
-          wss.broadcast('V' + ws.data.name);
+          wss.broadcast('v' + ws.data.name);
           ws.send('end');
         }
       }

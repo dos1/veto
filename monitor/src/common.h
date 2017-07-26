@@ -22,19 +22,37 @@
 struct CommonResources {
 		// Fill in with common data accessible from all gamestates.
 		bool ws;
+		struct lws *ws_socket;
 		struct lws_context *ws_context;
 		bool ws_connected;
+		char* ws_buffer;
 };
 
 typedef enum {
-	VETO_EVENT_INCOMING_MESSAGE = 512,
-	VETO_EVENT_CONNECTING,
-	VETO_EVENT_CONNECTED,
-	VETO_EVENT_DISCONNECTED
+	WEBSOCKET_EVENT_INCOMING_MESSAGE = 2048,
+	WEBSOCKET_EVENT_CONNECTING,
+	WEBSOCKET_EVENT_CONNECTED,
+	WEBSOCKET_EVENT_DISCONNECTED,
+} WEBSOCKET_EVENT_TYPE;
+
+typedef enum {
+	VETO_EVENT_START = 1024,
+	VETO_EVENT_VOTING,
+	VETO_EVENT_COUNTER,
+	VETO_EVENT_VOTES_FOR,
+	VETO_EVENT_VOTES_AGAINST,
+	VETO_EVENT_VOTES_ABSTAINED,
+	VETO_EVENT_VOTE_RESULT,
+	VETO_EVENT_PLAYERS,
+	VETO_EVENT_JOIN,
+	VETO_EVENT_LEAVE,
+	VETO_EVENT_RECONNECT,
+	VETO_EVENT_VETO
 } VETO_EVENT_TYPE;
 
 struct CommonResources* CreateGameData(struct Game *game);
 void DestroyGameData(struct Game *game, struct CommonResources *data);
 void WebSocketConnect(struct Game *game);
 void WebSocketDisconnect(struct Game *game);
+void WebSocketSend(struct Game *game, char* msg);
 bool GlobalEventHandler(struct Game *game, ALLEGRO_EVENT *event);
