@@ -1,6 +1,6 @@
 const WebSocket = require('ws');
 
-const ws = new WebSocket('ws://localhost:8888/');
+const ws = new WebSocket('ws://veto.dosowisko.net:8889/');
 
 ws.on('open', function open() {
   //ws.send('something');
