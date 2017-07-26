@@ -186,17 +186,21 @@ let startVote = function() {
         let i = 2;
         while ((splayers[i]) && (splayers[i].score == splayers[2].score)) {
             splayers[i].vetoRight = true;
-            splayers[i].ws.send('canVeto');
+            if (splayers[i].ws.readyState == WebSocket.OPEN) {
+              splayers[i].ws.send('canVeto');
+            }
             i++;
         }
     }
     if (splayers[1]) {
         splayers[1].vetoRight = true;
-            splayers[1].ws.send('canVeto');
+            if (splayers[i].ws.readyState == WebSocket.OPEN) {
+            splayers[1].ws.send('canVeto'); }
     }
     if (splayers[0]) {
         splayers[0].vetoRight = true;
-            splayers[0].ws.send('canVeto');
+            if (splayers[i].ws.readyState == WebSocket.OPEN) {
+            splayers[0].ws.send('canVeto');}
     }
   }
 
