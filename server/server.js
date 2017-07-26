@@ -161,7 +161,7 @@ let startVote = function() {
     
     console.log('VOTE round ' + state.round);
 
-    if (state.round % 2 == 0) {
+    if (state.round % 5 == 0) {
         state.canVeto = true;
     } else {
         state.canVeto = false;
@@ -413,6 +413,21 @@ wss.on('connection', function connection(ws) {
       if (ws == state.monitor) {
         startVote();
       }
+    }
+
+    if (data.type == 'debug') {
+ws.send(JSON.stringify(players, function(key, value) {
+    if (key==='ws') return;
+    return value;
+}));
+
+ws.send(JSON.stringify(state, function(key, value) {
+    if (key==='monitor') return;
+    if (key==='ws') return;
+    return value;
+}));
+
+
     }
 
   });
