@@ -134,7 +134,9 @@ let startGame = function() {
       player.vetoRight = false;
       player.score = 0;
       player.ended = false;
-      player.ws.send('score:0');
+      if (player.ws.readyState == WebSocket.OPEN) {
+        player.ws.send('score:0');
+      }
   });
   
   state.round=1;
