@@ -465,7 +465,7 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	SetCharacterPosition(game, data->jezyk, 487, 146, 0);
 	SetCharacterPosition(game, data->lisek, 839, 0, 0);
 
-	SetCharacterPosition(game, data->deputy, 1409, 1, 0);
+	SetCharacterPosition(game, data->deputy, 1397, 5, 0);
 	SetCharacterPosition(game, data->bobr, 1623, 572, 0);
 
 	return data;
