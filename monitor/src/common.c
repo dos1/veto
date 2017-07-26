@@ -28,7 +28,7 @@ static struct lws_protocols protocols[] = {
   {
 		.name = "veto",
 		.callback = WebSocketCallback,
-		.rx_buffer_size = 16
+		.rx_buffer_size = 64
   },
   { .callback = NULL } /* terminator */
 };
