@@ -25,15 +25,20 @@
 struct GamestateResources {
 		// This struct is for every resource allocated and used by your gamestate.
 		// It gets created on load and then gets passed around to all other function calls.
-		ALLEGRO_FONT *font, *statusfont;
+		ALLEGRO_FONT *font, *statusfont, *vetofont;
 
 		int counter;
+		char* content;
 
-		ALLEGRO_BITMAP *bg, *galaz, *pienki;
+		ALLEGRO_AUDIO_STREAM *music;
+
+		ALLEGRO_BITMAP *bg, *galaz, *pienki, *trawka1, *trawka2, *trawka3;
 
 		bool started;
 		bool deputyShown;
 		bool billShown;
+		bool vetoShown;
+		bool resultsShown;
 
 		int players;
 		char* status;
@@ -45,6 +50,8 @@ struct GamestateResources {
 		struct Timeline *statustm;
 
 		struct Character *bobr, *borsuk, *deputy, *jezyk, *lisek;
+
+		char *winner[4];
 
 		int speechdelay;
 
@@ -122,10 +129,35 @@ bool ShowBill(struct Game *game, struct TM_Action *action, enum TM_ActionState s
 	return true;
 }
 
+bool ShowResults(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
+	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
+	if (state == TM_ACTIONSTATE_RUNNING) {
+		data->resultsShown = true;
+		data->started = false;
+	}
+	return true;
+}
+
 bool HideBill(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
 		data->billShown = false;
+	}
+	return true;
+}
+
+bool ShowVeto(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
+	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
+	if (state == TM_ACTIONSTATE_RUNNING) {
+		data->vetoShown = true;
+	}
+	return true;
+}
+
+bool HideVeto(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
+	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
+	if (state == TM_ACTIONSTATE_RUNNING) {
+		data->vetoShown = false;
 	}
 	return true;
 }
@@ -139,7 +171,7 @@ bool HideDeputy(struct Game *game, struct TM_Action *action, enum TM_ActionState
 }
 
 bool StartVote(struct Game *game, struct TM_Action *action, enum TM_ActionState state) {
-	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
+	//struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
 		WebSocketSend(game, "{\"type\":\"voting\"}");
 	}
@@ -150,6 +182,7 @@ bool Start(struct Game *game, struct TM_Action *action, enum TM_ActionState stat
 	struct GamestateResources *data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
 		data->started = true;
+		data->resultsShown = false;
 	}
 	return true;
 }
@@ -196,6 +229,36 @@ bool HideResults(struct Game *game, struct TM_Action *action, enum TM_ActionStat
 }
 
 void StartLegislativeProcess(struct Game* game, struct GamestateResources* data) {
+
+	int bills = 25;
+	int billnr = rand() % bills;
+
+	char buf[256];
+	snprintf(buf, 255, "bills/%d.txt", billnr);
+
+	ALLEGRO_FILE *bill = al_fopen(GetDataFilePath(game, buf), "r");
+	snprintf(buf, 255, "bills/%d.flac", billnr);
+
+	int size = al_fsize(bill);
+
+	char *content = malloc(size * sizeof(char));
+	al_fread(bill, content, size);
+
+	buf[255] = 0;
+
+	al_fclose(bill);
+
+	for (int i=0; i<size; i++) {
+		if (content[i]=='\n') {
+			content[i] = ' ';
+		}
+	}
+
+	if (data->content) {
+		free(data->content);
+	}
+	data->content = content;
+
 	TM_AddAction(data->timeline, &ShowDeputy, TM_AddToArgs(NULL, 1, data), "showdeputy");
 	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
 	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/read.flac"), 4, 1024), data->bobr), "speak");
@@ -203,7 +266,7 @@ void StartLegislativeProcess(struct Game* game, struct GamestateResources* data)
 	TM_AddAction(data->timeline, &ShowBill, TM_AddToArgs(NULL, 1, data), "showbill");
 	TM_AddDelay(data->timeline, 100);
 	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
-	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/bill.flac"), 4, 1024), data->deputy), "speak");
+	                                     al_load_audio_stream(GetDataFilePath(game, buf), 4, 1024), data->deputy), "speak");
 	TM_AddDelay(data->timeline, 500);
 	TM_AddAction(data->timeline, &HideDeputy, TM_AddToArgs(NULL, 1, data), "hidedeputy");
 	TM_AddDelay(data->timeline, 200);
@@ -241,10 +304,10 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 		DrawCharacter(game, data->borsuk, al_map_rgb(255,255,255), 0);
 
 		if (data->showFor) {
-			al_draw_textf(data->font, al_map_rgb(0,0,0), 254, 85, ALLEGRO_ALIGN_CENTER, "%d", data->votesFor);
+			al_draw_textf(data->font, al_map_rgb(0,0,0), 254, 90, ALLEGRO_ALIGN_CENTER, "%d", data->votesFor);
 		}
 		if (data->showAgainst) {
-			al_draw_textf(data->font, al_map_rgb(0,0,0), 635, 160, ALLEGRO_ALIGN_CENTER, "%d", data->votesAgainst);
+			al_draw_textf(data->font, al_map_rgb(0,0,0), 635, 190, ALLEGRO_ALIGN_CENTER, "%d", data->votesAgainst);
 		}
 
 	}
@@ -255,19 +318,47 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	if (data->started) {
 		DrawCharacter(game, data->lisek, al_map_rgb(255,255,255), 0);
 		if (data->showAbstrained) {
-			al_draw_textf(data->font, al_map_rgb(0,0,0), 1080, 25, ALLEGRO_ALIGN_CENTER, "%d", data->abstrained);
+			al_draw_textf(data->font, al_map_rgb(0,0,0), 1080, 35, ALLEGRO_ALIGN_CENTER, "%d", data->abstrained);
 		}
 
 	}
+
+
+	al_draw_bitmap(data->trawka1, -99, 483, 0);
+	al_draw_bitmap(data->trawka3, 1159, 492,0);
+	al_draw_bitmap(data->trawka2, 1106, 656, 0);
 
 	if (data->billShown) {
 		al_draw_filled_rectangle(0, 0, 1920/1.4, 1080, al_map_rgba(220, 220, 220, 220));
 
+		DrawWrappedText(data->statusfont, al_map_rgb(0,0,0), 50, 120, 1920/1.4 - 100, ALLEGRO_ALIGN_LEFT, data->content);
+
 		if (data->timeLeft >= 0) {
-			al_draw_textf(data->font, al_map_rgb(0,0,0), 1920/2.8, 700, ALLEGRO_ALIGN_CENTER, "%d", data->timeLeft);
+			al_draw_textf(data->font, al_map_rgb(0,0,0), 1920/2.8, 666, ALLEGRO_ALIGN_CENTER, "%d", data->timeLeft);
 		}
 	}
 
+	if (data->vetoShown) {
+		al_draw_filled_rectangle(0, 0, 1920, 1080, al_map_rgba(0,0,0,128));
+		al_draw_text(data->vetofont, al_map_rgba(245,203,2,240), game->viewport.width / 2, game->viewport.height / 2 - 220,
+		           ALLEGRO_ALIGN_CENTRE, "VETO!");
+	}
+
+	if (data->resultsShown) {
+		al_draw_filled_rectangle(0, 0, 1920, 1080, al_map_rgba(220, 220, 220, 220));
+
+		al_draw_text(data->statusfont, al_map_rgb(0,0,0), 1920/2, 60, ALLEGRO_ALIGN_CENTER, "The end!" );
+
+
+		al_draw_text(data->statusfont, al_map_rgb(0,0,0), 180, 200, ALLEGRO_ALIGN_LEFT, "The most effective deputy:" );
+		al_draw_text(data->statusfont, al_map_rgb(0,0,0), 1920-180, 330, ALLEGRO_ALIGN_RIGHT, data->winner[0] );
+
+		al_draw_text(data->statusfont, al_map_rgb(0,0,0), 180, 520, ALLEGRO_ALIGN_LEFT, "The most destructive deputies:" );
+		al_draw_textf(data->statusfont, al_map_rgb(0,0,0), 1920-180, 540+110, ALLEGRO_ALIGN_RIGHT, "1. %s", data->winner[1] );
+		al_draw_textf(data->statusfont, al_map_rgb(0,0,0), 1920-180, 540+110+110, ALLEGRO_ALIGN_RIGHT, "2. %s", data->winner[2] );
+		al_draw_textf(data->statusfont, al_map_rgb(0,0,0), 1920-180, 540+110+220, ALLEGRO_ALIGN_RIGHT, "3. %s", data->winner[3] );
+
+	}
 
 	if (!game->data->ws_connected) {
 		al_draw_filled_rectangle(0, 0, 1920, 1080, al_map_rgba(0,0,0,128));
@@ -281,9 +372,9 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 		al_draw_textf(data->statusfont, al_map_rgb(255,255,255), 1905, 5, ALLEGRO_ALIGN_RIGHT, "%d", data->players);
 	}
 
-//	al_draw_text(data->statusfont, al_map_rgb(0,0,0), 1920/2+5, 980+5, ALLEGRO_ALIGN_CENTER, "https://veto.dosowisko.net/");
-	al_draw_filled_rounded_rectangle(1920/2 - 420, 980, 1920/2 + 420, 1500, 20, 20, al_map_rgba(0, 0, 0, 128));
-	al_draw_text(data->statusfont, al_map_rgb(255,255,255), 1920/2, 980, ALLEGRO_ALIGN_CENTER, "https://veto.dosowisko.net/");
+//	al_draw_text(data->statusfont, al_map_rgb(0,0,0), 1920/2+5, 980+5, ALLEGRO_ALIGN_CENTER, "http://veto.dosowisko.net/");
+	al_draw_filled_rounded_rectangle(1920/2 - 470, 980, 1920/2 + 470, 1500, 20, 20, al_map_rgba(0, 0, 0, 128));
+	al_draw_text(data->statusfont, al_map_rgb(255,255,255), 1920/2, 985, ALLEGRO_ALIGN_CENTER, "http://veto.dosowisko.net/");
 
 }
 
@@ -404,26 +495,71 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		StartLegislativeProcess(game, data);
 	}
 	if (ev->type == VETO_EVENT_VETO) {
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 2, data,
-		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/veto.flac"), 4, 1024)), "speak");
+
+
+		char *buf = malloc(255 * sizeof(char));
+		snprintf(buf, 255, "Veto from %s!", (char*)ev->user.data1);
+		TM_AddAction(data->statustm, &ShowStatus, TM_AddToArgs(NULL, 2, data, buf), "showstatus");
+		TM_AddDelay(data->statustm, 2000);
+		TM_AddAction(data->statustm, &ShowStatus, TM_AddToArgs(NULL, 2, data, NULL), "clearstatus");
+
+		TM_AddAction(data->timeline, &HideBill, TM_AddToArgs(NULL, 1, data), "hidebill");
+		TM_AddAction(data->timeline, &ShowVeto, TM_AddToArgs(NULL, 1, data), "showveto");
+
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/veto.flac"), 4, 1024), NULL), "speak");
 		TM_AddDelay(data->timeline, 500);
 		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
 		                                     al_load_audio_stream(GetDataFilePath(game, "sounds/rejected.flac"), 4, 1024), data->bobr), "speak");
+		TM_AddAction(data->timeline, &HideVeto, TM_AddToArgs(NULL, 1, data), "hideveto");
+		TM_AddDelay(data->timeline, 200);
 		StartLegislativeProcess(game, data);
 	}
+	if (ev->type == VETO_EVENT_WINNER) {
+		data->winner[ev->user.data1] = (char*)ev->user.data2;
+	}
+if (ev->type == VETO_EVENT_THE_END) {
+
+
+	char *buf = malloc(255 * sizeof(char));
+	snprintf(buf, 255, "Veto from %s!", (char*)ev->user.data1);
+	TM_AddAction(data->statustm, &ShowStatus, TM_AddToArgs(NULL, 2, data, buf), "showstatus");
+	TM_AddDelay(data->statustm, 2000);
+	TM_AddAction(data->statustm, &ShowStatus, TM_AddToArgs(NULL, 2, data, NULL), "clearstatus");
+
+	TM_AddAction(data->timeline, &HideBill, TM_AddToArgs(NULL, 1, data), "hidebill");
+	TM_AddAction(data->timeline, &ShowVeto, TM_AddToArgs(NULL, 1, data), "showveto");
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/veto.flac"), 4, 1024), NULL), "speak");
+	TM_AddDelay(data->timeline, 500);
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/rejected.flac"), 4, 1024), data->bobr), "speak");
+	TM_AddAction(data->timeline, &HideVeto, TM_AddToArgs(NULL, 1, data), "hideveto");
+	TM_AddDelay(data->timeline, 200);
+	TM_AddAction(data->timeline, &ShowResults, TM_AddToArgs(NULL, 1, data), "showresults");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data,
+	                                     al_load_audio_stream(GetDataFilePath(game, "sounds/theend.flac"), 4, 1024), data->bobr), "speak");
+
+}
 }
 
 void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	// Called once, when the gamestate library is being loaded.
 	// Good place for allocating memory, loading bitmaps etc.
 	struct GamestateResources *data = malloc(sizeof(struct GamestateResources));
-	data->font = al_load_font(GetDataFilePath(game, "fonts/NotoSerif-Regular.ttf"), 192, 0);
-	data->statusfont = al_load_font(GetDataFilePath(game, "fonts/NotoSerif-Regular.ttf"), 64, 0);
+	data->font = al_load_font(GetDataFilePath(game, "fonts/TrashHand.ttf"), 192+30, 0);
+	data->vetofont = al_load_font(GetDataFilePath(game, "fonts/TrashHand.ttf"), 400, 0);
+	data->statusfont = al_load_font(GetDataFilePath(game, "fonts/TrashHand.ttf"), 64+30, 0);
 	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 
 	data->bg = al_load_bitmap(GetDataFilePath(game, "bg.png"));
 	data->galaz = al_load_bitmap(GetDataFilePath(game, "galaz.png"));
 	data->pienki = al_load_bitmap(GetDataFilePath(game, "pienki.png"));
+
+	data->trawka1 = al_load_bitmap(GetDataFilePath(game, "trawka1.png"));
+	data->trawka2 = al_load_bitmap(GetDataFilePath(game, "trawka2.png"));
+	data->trawka3 = al_load_bitmap(GetDataFilePath(game, "trawka3.png"));
 
 	data->timeline = TM_Init(game, "timeline");
 	data->statustm = TM_Init(game, "status");
@@ -468,6 +604,13 @@ void* Gamestate_Load(struct Game *game, void (*progress)(struct Game*)) {
 	SetCharacterPosition(game, data->deputy, 1397, 5, 0);
 	SetCharacterPosition(game, data->bobr, 1623, 572, 0);
 
+	data->music = al_load_audio_stream(GetDataFilePath(game, "bg.flac"), 4, 1024);
+	al_set_audio_stream_playing(data->music, false);
+	al_set_audio_stream_gain(data->music, 1.5);
+	al_attach_audio_stream_to_mixer(data->music, game->audio.music);
+	al_set_audio_stream_playmode(data->music, ALLEGRO_PLAYMODE_LOOP);
+
+
 	return data;
 }
 
@@ -481,6 +624,7 @@ void Gamestate_Unload(struct Game *game, struct GamestateResources* data) {
 void Gamestate_Start(struct Game *game, struct GamestateResources* data) {
 	// Called when this gamestate gets control. Good place for initializing state,
 	// playing music etc.
+	al_set_audio_stream_playing(data->music, true);
 	data->counter = 0;
 	WebSocketConnect(game);
 	data->players = 0;
@@ -492,11 +636,19 @@ void Gamestate_Start(struct Game *game, struct GamestateResources* data) {
 	data->showAbstrained = false;
 	data->showAgainst = false;
 	data->showFor = false;
+	data->content = NULL;
+	data->vetoShown = false;
+	data->resultsShown = false;
+	data->winner[0] = NULL;
+	data->winner[1] = NULL;
+	data->winner[2] = NULL;
+	data->winner[3] = NULL;
 }
 
 void Gamestate_Stop(struct Game *game, struct GamestateResources* data) {
 	// Called when gamestate gets stopped. Stop timers, music etc. here.
 	WebSocketDisconnect(game);
+	al_set_audio_stream_playing(data->music, false);
 }
 
 void Gamestate_Pause(struct Game *game, struct GamestateResources* data) {

@@ -148,7 +148,7 @@ void VetoProtocolHandler(struct Game *game, char* msg, int len) {
 		al_emit_user_event(&(game->event_source), &ev, NULL);
 		return;
 	}
-	if (msg[0] == 'V') {
+	if (msg[0] == 'v') {
 		ev.user.type = VETO_EVENT_VETO;
 		ev.user.data1 = (intptr_t)strdup(msg+1);
 		PrintConsole(game, "[veto] veto from %s", ev.user.data1);
@@ -181,6 +181,21 @@ void VetoProtocolHandler(struct Game *game, char* msg, int len) {
 		ev.user.type = VETO_EVENT_RECONNECT;
 		ev.user.data1 = (intptr_t)strdup(msg+1);
 		PrintConsole(game, "[veto] player %s reconnected", ev.user.data1);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'W') {
+		ev.user.type = VETO_EVENT_WINNER;
+		ev.user.data1 = msg[1] - '0';
+		ev.user.data2 = (intptr_t)strdup(msg+2);
+		PrintConsole(game, "[veto] winner nr %d is %s", ev.user.data1, ev.user.data2);
+		al_emit_user_event(&(game->event_source), &ev, NULL);
+		return;
+	}
+	if (msg[0] == 'T') {
+		ev.user.type = VETO_EVENT_THE_END;
+		ev.user.data1 = (intptr_t)strdup(msg+1);
+		PrintConsole(game, "[veto] the end");
 		al_emit_user_event(&(game->event_source), &ev, NULL);
 		return;
 	}
@@ -258,7 +273,7 @@ void WebSocketConnect(struct Game *game) {
 	memset(&ccinfo, 0, sizeof(ccinfo));
 
 	ccinfo.context = game->data->ws_context;
-	ccinfo.address = "localhost";
+	ccinfo.address = "veto.dosowisko.net"; //"localhost";
 	ccinfo.port = 8889;
 	ccinfo.path = "/";
 	ccinfo.host = lws_canonical_hostname(game->data->ws_context);

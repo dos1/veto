@@ -47,7 +47,9 @@ typedef enum {
 	VETO_EVENT_JOIN,
 	VETO_EVENT_LEAVE,
 	VETO_EVENT_RECONNECT,
-	VETO_EVENT_VETO
+	VETO_EVENT_VETO,
+	VETO_EVENT_WINNER,
+	VETO_EVENT_THE_END
 } VETO_EVENT_TYPE;
 
 struct CommonResources* CreateGameData(struct Game *game);

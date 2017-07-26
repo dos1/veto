@@ -3,17 +3,25 @@
 <head>
 <meta charset="utf-8" />
 <title>Veto!</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=430, maximum-scale=1" />
 <script src="jquery.js"></script>
 
 <style>
+
+@font-face {
+  font-family: 'TrashHand';
+  src: url('fonts/TrashHand.ttf');
+}
+
   html, body {
+    font-family: 'TrashHand', serif;
     margin: 0;
     padding: 0;
+font-size: 24px;
   }
+input { font-family: 'TrashHand', serif; }
  .screen {
    display: none;
-   border: 5px solid black;
    padding: 50px 20px;
    width: 100%;
    height: 100vh;
@@ -24,13 +32,30 @@
    position: absolute;
    top: 0;
    left: 0;
+  background-color: white;
+ }
+  input#nick{ 
+    font-size: 32px;
+    padding: 10px;
+    margin: 50px 20px 50px 0;
+  }
+ .screen.vote {
+    font-size: 48px;
+    text-align: center;
+    padding-top: 80px;
+ }
+ .time {
+    position: fixed;
+    bottom: 10px;
+    left: 20px;
+    z-index:15;
  }
  .header {
     position: fixed;
     top: 0;
     width: 100%;
     height: 40px;
-    background-color: red;
+    background-color: white;
     left: 0;
     z-index: 10;
   }
@@ -39,34 +64,94 @@
     bottom: 0;
     width: 100%;
     height: 40px;
-    background-color: yellow;
+    background-color: white;
     left: 0;
     z-index: 10;
+  }
+  .user, .score {
+    font-size: 32px;
+  }
+  .screen.connecting { padding-top: 80px; }
+  .user {
+    padding: 20px;
+    text-align: left;
+  }
+  .score {
+    padding-right: 20px;
+    text-align: right;
+  }
+  img.a {
+    opacity: 0.05;
+    width: 5px;
   }
   #kitty {
     margin-bottom: 50px;
   }
-
   .button {
     width: 100px;
     height: 100px;
-    background-color: red;
+    background-size: 100% 100%;
     display: inline-block;
+    text-indent: -9999px;
   }
   .button.active {
-    background-color: green;
   }
+  .button#nicksend {
+    background-image: url("images/OK_standby_2.png");
+    position: relative;
+    top: -35px;
+  }
+  .button#nicksend.active {
+    background-image: url("images/OK_hover_2.png");
+  }
+  .button.for {
+    background-image: url("images/yes_1.png");
+  }
+  .button.for.active {
+    background-image: url("images/yes_2.png");
+  }
+  .button.abstain {
+    background-image: url("images/huh_1.png");
+  }
+  .button.abstain.active {
+    background-image: url("images/huh_2.png");
+  }
+  .button.against {
+    background-image: url("images/x_1.png");
+  }
+  .button.against.active {
+    background-image: url("images/x_2.png");
+  }
+  .button.veto {
+    width: 200px;
+    height: 79px;
+    background-image: url("images/veto_2.png");  
+  }
+  
+
 </style>
 
 </head>
 <body>
+
+<img class="a" src="images/huh_1.png" />
+<img class="a" src="images/huh_2.png" />
+<img class="a" src="images/OK_hover_2.png" />
+<img class="a" src="images/OK_standby_2.png" />
+<img class="a" src="images/veto_2.png" />
+<img class="a" src="images/x_1.png" />
+<img class="a" src="images/x_2.png" />
+<img class="a" src="images/yes_1.png" />
+<img class="a" src="images/yes_2.png" />
+
 
 <div class="header">
   <div class="user"></div>
 </div>
 
 <div class="screen login">
-  Your name: <input maxlength="24" type="text" id="nick" /> <input type="button" id="nicksend" value="Save" />
+  <input maxlength="24" type="text" id="nick" placeholder="Your name" /> 
+  <div class="button" id="nicksend">OK!</div>
 </div>
 <div class="screen vote">
  <div class="button for">For</div>
@@ -104,7 +189,8 @@ if (!String.prototype.startsWith) {
 $(function() {
   $('.screen').hide();
 
-  var socket = new WebSocket("ws://192.168.0.143:8889/", "veto");
+//  var socket = new WebSocket("ws://192.168.0.143:8889/", "veto");
+  var socket = new WebSocket("ws://veto.dosowisko.net:8889/", "veto");
 
   $('.screen.connecting').show();
 
@@ -119,8 +205,17 @@ $(function() {
       socket.send(JSON.stringify({type:'reconnect', cookie: cookieValue}));  
 
     } else {
-      $('.screen.login').show();
+      $('.screen.login').show(); // CHANGE
     }
+
+$('#nick').on('keyup', function() {
+ if ($('#nick').val()) {
+  $('#nicksend').addClass('active');
+ } else {
+   $('#nicksend').removeClass('active');
+  }
+});
+
       $('.screen.login #nicksend').on('click', function() {
         // login
         var nick = $('#nick').val();
@@ -224,6 +319,12 @@ $(function() {
       return;
     }
     if (data.startsWith("v")) {
+      $('.screen').hide();
+      $('.screen.wait').show();
+        $('#kitty').attr('src', 'https://thecatapi.com/api/images/get?format=src&size=small&timestamp=' + Date.now());
+      return;
+    }
+    if (data.startsWith("T")) {
       $('.screen').hide();
       $('.screen.wait').show();
         $('#kitty').attr('src', 'https://thecatapi.com/api/images/get?format=src&size=small&timestamp=' + Date.now());

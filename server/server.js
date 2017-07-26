@@ -9,6 +9,11 @@
    E{1} - voting ended; {1} is a result: either F (for) or A (against)
       
    v{1} - player with nick {1} used veto
+   T{1} - the end of the game, because of veto from player {1}
+   W0{1} - {1} is the winner of the best deputy award
+   W1{1} - {1} is the veto 1st winner
+   W2{1} - {1} is the veto 2nd winner
+   W3{1} - {1} is the veto 3rd winner
    
  events sent only to monitor:
    P{1} - currently {1} players are connected
@@ -22,7 +27,7 @@
    nick:{1} - nick sent after reconnecting
    end - this player has ended their game
    score:{1} - current score of the player
-   TODO: canVeto - player can veto in this round
+   canVeto - player can veto in this round
    err - if reconnection didn't succeed
    ok - if reconnection did succeed
    
@@ -50,15 +55,15 @@ const wss = new WebSocket.Server({ port: 8889 });
 
 let players = [];
 
-let round = 0;
-
-let canVeto = false;
-
 let state = {
   monitor: null,
   voting: false,
   counter: null,
-  started: false
+  started: false,
+  round: 0,
+  canVeto: false,
+  vetos: 0,
+  vetoers: []
 };
 
 let countVotes = function() {
@@ -106,7 +111,7 @@ let countVotes = function() {
 
     });
     
-    round++;
+    state.round++;
 
 };
 
@@ -117,37 +122,86 @@ let startGame = function() {
     console.log('START');
   }
   state.started = true;
-  wss.broadcast('S');
   
+  state.vetoers = [];
   state.counter = 0;
   state.voting = false;
+  state.vetos = 0;
+  state.canVeto = false;
   
   players.forEach(function(player) {
       player.vote = null;
       player.vetoRight = false;
       player.score = 0;
       player.ended = false;
+      player.ws.send('score:0');
   });
   
-  round=0;
+  state.round=1;
+  
+  wss.broadcast('S');
+
 };
+
+function dynamicSort(property) {
+    var sortOrder = 1;
+    if(property[0] === "-") {
+        sortOrder = -1;
+        property = property.substr(1);
+    }
+    return function (a,b) {
+        var result = (a[property] < b[property]) ? -1 : (a[property] > b[property]) ? 1 : 0;
+        return result * sortOrder;
+    }
+}
 
 let startVote = function() {
     
     if (state.voting) return;
     
-    console.log('VOTE round ' + round);
+    console.log('VOTE round ' + state.round);
 
+    if (state.round % 2 == 0) {
+        state.canVeto = true;
+    } else {
+        state.canVeto = false;
+    }
+    
   players.forEach(function(player) {
     player.vote = null;
+    player.vetoRight = false;
   });
-
+  
   state.voting = true;
   wss.broadcast('V');
+
+  let splayers = players.sort(dynamicSort("score")).filter(function(user) {
+      return !user.ended;
+  });
+  
+  if (state.canVeto) {
+    if (splayers[2]) {
+        let i = 2;
+        while ((splayers[i]) && (splayers[i].score == splayers[2].score)) {
+            splayers[i].vetoRight = true;
+            splayers[i].ws.send('canVeto');
+            i++;
+        }
+    }
+    if (splayers[1]) {
+        splayers[1].vetoRight = true;
+            splayers[1].ws.send('canVeto');
+    }
+    if (splayers[0]) {
+        splayers[0].vetoRight = true;
+            splayers[0].ws.send('canVeto');
+    }
+  }
 
   state.counter = 10;
 
   var tick = function() {
+      if (!state.voting) return;
     if (state.counter >= 0) {
       wss.broadcast('C' + state.counter);
       state.counter--;
@@ -165,7 +219,11 @@ let startVote = function() {
 wss.broadcast = function broadcast(data) {
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(data);
+      if ((client.data) || (client == state.monitor)) {
+        if ((!client.data) || (!client.data.ended)) {
+            client.send(data);
+    }
+      }
     }
   });
 };
@@ -199,13 +257,13 @@ wss.on('connection', function connection(ws) {
     // Broadcast to everyone.
     //wss.broadcast(data);
 
-    console.log('got ' + data + ' from ' + ws.data)
+    console.log('got ' + data + ' from ' + (ws.data ? ws.data.name : null))
 
     //if (data.startsWith('{')) {
     try {
       data = JSON.parse(data);
     } catch(e) {
-      console.log('error parsing ' + data + ' - ' + ws.data)
+      console.log('error parsing ' + data + ' - ' + (ws.data ? ws.data.name : null))
       return;
     }
     //}
@@ -302,12 +360,46 @@ wss.on('connection', function connection(ws) {
     if (data.type == 'veto') {
       if (!ws.data) return;
       if (state.voting) {
-        if ((ws.data.vetoRight) && (canVeto)) {
-          canVeto = false;
+        if ((ws.data.vetoRight) && (state.canVeto)) {
+          state.canVeto = false;
           console.log(ws.data.name + ' said VETO!')
-          ws.data.ended = true;
-          wss.broadcast('v' + ws.data.name);
+          state.voting = false;
+          state.vetos++;
+          state.round++;
+          ws.data.score -= 10 - state.counter;
+          state.vetoers.push(ws.data);
+          ws.send('score:'+ws.data.score);
           ws.send('end');
+          ws.data.ended = true;
+          
+          if (state.vetos == 3) {
+              
+            players.sort(dynamicSort('-score'));
+            
+            var bestscore = players[0].score;
+            let i = 1;
+            let thebests = [players[0].name];
+            while (players[i].score == bestscore) {
+                thebests.push(players[i].name);
+                i++;
+            }
+            
+            wss.broadcast('W0' + thebests.join(', ') + ' ('+bestscore+')');
+
+            state.vetoers.sort(dynamicSort('score'));
+            
+            wss.broadcast('W1' + state.vetoers[0].name + ' ('+state.vetoers[0].score+')');
+            wss.broadcast('W2' + state.vetoers[1].name + ' ('+state.vetoers[1].score+')');
+            wss.broadcast('W3' + state.vetoers[2].name + ' ('+state.vetoers[2].score+')');
+            
+
+            wss.broadcast('T' + ws.data.name);
+            
+            console.log("THE END");
+          } else {
+            wss.broadcast('v' + ws.data.name);
+          }
+
         }
       }
     }

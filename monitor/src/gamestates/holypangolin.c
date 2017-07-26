@@ -52,7 +52,7 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	                      0, 0, game->viewport.width, game->viewport.height, 0);
 
 	if (data->counter < 320) {
-		al_draw_filled_rectangle(0, 0, al_get_display_width(game->display), al_get_display_height(game->display), al_map_rgba_f(1 - data->counter / 280.0, 1 - data->counter / 280.0, 1 - data->counter / 280.0, 1 - data->counter / 280.0));
+		al_draw_filled_rectangle(0, 0, game->viewport.width, game->viewport.height, al_map_rgba_f(1 - data->counter / 280.0, 1 - data->counter / 280.0, 1 - data->counter / 280.0, 1 - data->counter / 280.0));
 	}
 }
 
