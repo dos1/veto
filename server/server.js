@@ -48,6 +48,8 @@ debug:
 TODO: test reconnect, start vs. voting; implement veto and debug monitor
 */
 
+const VOTING_TIME = 5;
+
 const WebSocket = require('ws');
 const randomstring = require('randomstring');
 
@@ -90,7 +92,7 @@ let countVotes = function() {
 
     wss.broadcast('F' + forvotes);
     wss.broadcast('A' + against);
-    wss.broadcast('N' + nonevotes);
+    wss.broadcast('N' + (nonevotes - state.vetoers.length));
  
     let result = 'A';
     if (forvotes > against) {
@@ -194,23 +196,23 @@ let startVote = function() {
     }
     if (splayers[1]) {
         splayers[1].vetoRight = true;
-            if (splayers[i].ws.readyState == WebSocket.OPEN) {
+            if (splayers[1].ws.readyState == WebSocket.OPEN) {
             splayers[1].ws.send('canVeto'); }
     }
     if (splayers[0]) {
         splayers[0].vetoRight = true;
-            if (splayers[i].ws.readyState == WebSocket.OPEN) {
+            if (splayers[0].ws.readyState == WebSocket.OPEN) {
             splayers[0].ws.send('canVeto');}
     }
   }
 
-  state.counter = 10;
+  state.counter = VOTING_TIME + 1;
 
   var tick = function() {
       if (!state.voting) return;
-    if (state.counter >= 0) {
-      wss.broadcast('C' + state.counter);
+    if (state.counter > 0) {
       state.counter--;
+      wss.broadcast('C' + state.counter);
       setTimeout(tick, 1000);
     } else {
       state.voting = false;
@@ -372,7 +374,7 @@ wss.on('connection', function connection(ws) {
           state.voting = false;
           state.vetos++;
           state.round++;
-          ws.data.score -= 10 - state.counter;
+          ws.data.score -= (VOTING_TIME - state.counter) * 2;
           state.vetoers.push(ws.data);
           ws.send('score:'+ws.data.score);
           ws.send('end');
