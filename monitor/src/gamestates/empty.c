@@ -241,10 +241,8 @@ void StartLegislativeProcess(struct Game* game, struct GamestateResources* data)
 
 	int size = al_fsize(bill);
 
-	char *content = malloc(size * sizeof(char));
+	char *content = malloc((size+1) * sizeof(char));
 	al_fread(bill, content, size);
-
-	buf[255] = 0;
 
 	al_fclose(bill);
 
@@ -253,6 +251,7 @@ void StartLegislativeProcess(struct Game* game, struct GamestateResources* data)
 			content[i] = ' ';
 		}
 	}
+	content[size] = '\0';
 
 	if (data->content) {
 		free(data->content);
@@ -324,9 +323,9 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	}
 
 
-	al_draw_bitmap(data->trawka1, -99, 483, 0);
-	al_draw_bitmap(data->trawka3, 1159, 492,0);
-	al_draw_bitmap(data->trawka2, 1106, 656, 0);
+	al_draw_rotated_bitmap(data->trawka1, 209, 708, -99 + 209, 483 + 708, sin((data->counter / 320.0) + 0.2) / 24.0, 0);
+	al_draw_rotated_bitmap(data->trawka3, 12, 740, 1159 + 12, 492 + 740, sin((data->counter / 666.0) - 0.5) / 16.0, 0);
+	al_draw_rotated_bitmap(data->trawka2, 75, 490, 1106 + 75, 656 + 490, sin((data->counter / 600.0) + 1.5) / 32.0, 0);
 
 	if (data->billShown) {
 		al_draw_filled_rectangle(0, 0, 1920/1.4, 1080, al_map_rgba(220, 220, 220, 220));
@@ -491,7 +490,7 @@ void Gamestate_ProcessEvent(struct Game *game, struct GamestateResources* data, 
 		}
 		TM_AddDelay(data->timeline, 100);
 		TM_AddAction(data->timeline, &HideResults, TM_AddToArgs(NULL, 1, data), "hideresults");
-		TM_AddDelay(data->timeline, 100);
+		TM_AddDelay(data->timeline, 500);
 		StartLegislativeProcess(game, data);
 	}
 	if (ev->type == VETO_EVENT_VETO) {
