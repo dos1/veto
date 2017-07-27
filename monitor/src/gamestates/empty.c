@@ -280,7 +280,7 @@ void Gamestate_Logic(struct Game *game, struct GamestateResources* data) {
 	if (!game->data->ws_connected) {
 		return;
 	}
-	data->counter++;
+	data->counter+=3;
 	TM_Process(data->timeline);
 	TM_Process(data->statustm);
 }
@@ -312,7 +312,7 @@ void Gamestate_Draw(struct Game *game, struct GamestateResources* data) {
 	}
 
 
-	al_draw_rotated_bitmap(data->galaz, 375, 170, 614+375, -200+170 + cos((data->counter / 256.0) + 1.2) * 4, sin(data->counter / 512.0) / 16.0, 0);
+	al_draw_rotated_bitmap(data->galaz, 375, 170, 614+375, -200+170 + cos((data->counter / 512.0) + 1.2) * 4, sin(data->counter / 1024.0) / 16.0, 0);
 
 	if (data->started) {
 		DrawCharacter(game, data->lisek, al_map_rgb(255,255,255), 0);
