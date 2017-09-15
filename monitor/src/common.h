@@ -20,12 +20,12 @@
 #include <libwebsockets.h>
 
 struct CommonResources {
-		// Fill in with common data accessible from all gamestates.
-		bool ws;
-		struct lws *ws_socket;
-		struct lws_context *ws_context;
-		bool ws_connected;
-		char* ws_buffer;
+	// Fill in with common data accessible from all gamestates.
+	bool ws;
+	struct lws* ws_socket;
+	struct lws_context* ws_context;
+	bool ws_connected;
+	char* ws_buffer;
 };
 
 typedef enum {
@@ -52,9 +52,9 @@ typedef enum {
 	VETO_EVENT_THE_END
 } VETO_EVENT_TYPE;
 
-struct CommonResources* CreateGameData(struct Game *game);
-void DestroyGameData(struct Game *game, struct CommonResources *data);
-void WebSocketConnect(struct Game *game);
-void WebSocketDisconnect(struct Game *game);
-void WebSocketSend(struct Game *game, char* msg);
-bool GlobalEventHandler(struct Game *game, ALLEGRO_EVENT *event);
+struct CommonResources* CreateGameData(struct Game* game);
+void DestroyGameData(struct Game* game);
+void WebSocketConnect(struct Game* game);
+void WebSocketDisconnect(struct Game* game);
+void WebSocketSend(struct Game* game, char* msg);
+bool GlobalEventHandler(struct Game* game, ALLEGRO_EVENT* event);
