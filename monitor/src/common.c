@@ -298,7 +298,12 @@ void WebSocketConnect(struct Game* game) {
 }
 
 void WebSocketSend(struct Game* game, char* msg) {
+	if (!game->data->ws_socket) {
+		PrintConsole(game, "[ws] Trying to send with no active connection: %s", msg);
+		return;
+	}
 	if (game->data->ws_buffer) {
+		PrintConsole(game, "[ws] Discarding previous buffer value! %s", game->data->ws_buffer);
 		free(game->data->ws_buffer);
 		game->data->ws_buffer = NULL;
 	}
