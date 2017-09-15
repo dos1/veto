@@ -22,6 +22,8 @@
 #include <libsuperderpy.h>
 #include <math.h>
 
+#define BILLS 25
+
 struct GamestateResources {
 	// This struct is for every resource allocated and used by your gamestate.
 	// It gets created on load and then gets passed around to all other function calls.
@@ -52,6 +54,8 @@ struct GamestateResources {
 	struct Character *bobr, *borsuk, *deputy, *jezyk, *lisek;
 
 	char* winner[4];
+
+	bool billUsed[BILLS];
 
 	int speechdelay;
 
@@ -208,6 +212,15 @@ static bool ShowAgainst(struct Game* game, struct TM_Action* action, enum TM_Act
 	return true;
 }
 
+static void StartLegislativeProcess(struct Game* game, struct GamestateResources* data);
+static bool StartProcess(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+	if (state == TM_ACTIONSTATE_RUNNING) {
+		StartLegislativeProcess(game, data);
+	}
+	return true;
+}
+
 static bool ShowAbstrained(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
 	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
 	if (state == TM_ACTIONSTATE_RUNNING) {
@@ -231,8 +244,36 @@ static bool HideResults(struct Game* game, struct TM_Action* action, enum TM_Act
 }
 
 static void StartLegislativeProcess(struct Game* game, struct GamestateResources* data) {
-	int bills = 25;
-	int billnr = rand() % bills;
+	int billnr = rand() % BILLS;
+
+	if (data->billUsed[billnr]) {
+		billnr = rand() % BILLS;
+
+		if (data->billUsed[billnr]) {
+			billnr = rand() % BILLS;
+			int r = billnr - 1;
+			if (r < 0) {
+				r = BILLS - 1;
+			}
+
+			do {
+				if (billnr >= BILLS) {
+					billnr = 0;
+				}
+				if (!data->billUsed[billnr]) {
+					break;
+				}
+				billnr++;
+			} while (r != billnr);
+			if (r == billnr) {
+				for (int j = 0; j < BILLS; j++) {
+					data->billUsed[j] = false;
+				}
+			}
+		}
+	}
+
+	data->billUsed[billnr] = true;
 
 	char buf[256];
 	snprintf(buf, 255, "bills/%d.txt", billnr);
@@ -366,6 +407,13 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	//	al_draw_text(data->statusfont, al_map_rgb(0,0,0), 1920/2+5, 980+5, ALLEGRO_ALIGN_CENTER, "http://veto.dosowisko.net/");
 	al_draw_filled_rounded_rectangle(1920 / 2 - 470, 980, 1920 / 2 + 470, 1500, 20, 20, al_map_rgba(0, 0, 0, 128));
 	al_draw_text(data->statusfont, al_map_rgb(255, 255, 255), 1920 / 2, 985, ALLEGRO_ALIGN_CENTER, "http://veto.dosowisko.net/"); // TODO: https?
+
+	/*
+	for (int i = 0; i < BILLS; i++) {
+		al_draw_filled_rectangle(50 * i + 50, 1080 - 50, 50 * i + 100, 1080, data->billUsed[i] ? al_map_rgb(255, 0, 0) : al_map_rgb(255, 255, 255));
+		al_draw_rectangle(50 * i + 50, 1080 - 50, 50 * i + 100, 1080, al_map_rgb(0, 0, 0), 2);
+	}
+	*/
 }
 
 void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, ALLEGRO_EVENT* ev) {
@@ -428,11 +476,14 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 	if (ev->type == VETO_EVENT_START) {
 		TM_CleanQueue(data->timeline);
 
+		for (int i = 0; i < BILLS; i++) {
+			data->billUsed[i] = false;
+		}
+
 		TM_AddAction(data->timeline, &Start, TM_AddToArgs(NULL, 1, data), "start");
 		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data, al_load_audio_stream(GetDataFilePath(game, "sounds/start.flac"), 4, 1024), data->bobr), "speak");
 		TM_AddDelay(data->timeline, 200);
-
-		StartLegislativeProcess(game, data);
+		TM_AddAction(data->timeline, &StartProcess, TM_AddToArgs(NULL, 1, data), "startprocess");
 	}
 
 	if (ev->type == VETO_EVENT_VOTES_FOR) {
@@ -474,7 +525,7 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 		TM_AddDelay(data->timeline, 100);
 		TM_AddAction(data->timeline, &HideResults, TM_AddToArgs(NULL, 1, data), "hideresults");
 		TM_AddDelay(data->timeline, 500);
-		StartLegislativeProcess(game, data);
+		TM_AddAction(data->timeline, &StartProcess, TM_AddToArgs(NULL, 1, data), "startprocess");
 	}
 	if (ev->type == VETO_EVENT_VETO) {
 		char* buf = malloc(255 * sizeof(char));
@@ -491,7 +542,7 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, data, al_load_audio_stream(GetDataFilePath(game, "sounds/rejected.flac"), 4, 1024), data->bobr), "speak");
 		TM_AddAction(data->timeline, &HideVeto, TM_AddToArgs(NULL, 1, data), "hideveto");
 		TM_AddDelay(data->timeline, 200);
-		StartLegislativeProcess(game, data);
+		TM_AddAction(data->timeline, &StartProcess, TM_AddToArgs(NULL, 1, data), "startprocess");
 	}
 	if (ev->type == VETO_EVENT_WINNER) {
 		data->winner[ev->user.data1] = (char*)ev->user.data2;
