@@ -1,1 +1,1 @@
-Creatures that are active at night shouldn’t scare or wake those, that are still sleeping.
+Nocne stworzenia nie moga napedzac stracha ani budzic tych, ktorzy jeszcze spia.
