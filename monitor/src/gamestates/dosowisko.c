@@ -23,7 +23,7 @@
 #include <math.h>
 
 #define NEXT_GAMESTATE "holypangolin"
-#define SKIP_GAMESTATE "empty"
+#define SKIP_GAMESTATE "parliament"
 
 struct GamestateResources {
 	ALLEGRO_FONT* font;
