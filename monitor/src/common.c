@@ -275,9 +275,9 @@ void WebSocketConnect(struct Game* game) {
 	struct lws_client_connect_info* ccinfo = calloc(1, sizeof(struct lws_client_connect_info));
 
 	ccinfo->context = game->data->ws_context;
-	ccinfo->address = "dosowisko.net"; // localhost
-	ccinfo->port = 8889;
-	ccinfo->path = "/";
+	ccinfo->address = GetConfigOptionDefault(game, "veto", "host", "dosowisko.net");
+	ccinfo->port = strtol(GetConfigOptionDefault(game, "veto", "port", "8889"), NULL, 10);
+	ccinfo->path = GetConfigOptionDefault(game, "veto", "path", "/");
 	ccinfo->host = lws_canonical_hostname(game->data->ws_context);
 	ccinfo->origin = "veto-monitor";
 	ccinfo->protocol = protocols[0].name;
