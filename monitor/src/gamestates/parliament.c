@@ -629,9 +629,9 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	SetCharacterPosition(game, data->borsuk, 51, 23, 0);
 	SetCharacterPosition(game, data->jezyk, 487, 146, 0);
 	SetCharacterPosition(game, data->lisek, 839, 0, 0);
-
 	SetCharacterPosition(game, data->deputy, 1397, 5, 0);
 	SetCharacterPosition(game, data->bobr, 1623, 572, 0);
+	SetCharacterPivotPoint(game, data->bobr, 0.25, 0.5);
 	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
 
 	data->music = al_load_audio_stream(GetDataFilePath(game, "bg.flac"), 4, 1024);
