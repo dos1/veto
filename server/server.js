@@ -294,9 +294,8 @@ wss.on('connection', function connection(ws) {
 
     if (data.type == 'join') {
       if (ws.data) return;
-      console.log(data.nick + ' joined');
       ws.data = {
-        name: data.nick,
+        name: data.nick.trim(),
         score: 0,
         vote: null,
         vetoRight: false,
@@ -306,6 +305,7 @@ wss.on('connection', function connection(ws) {
         ws: ws
       };
       players.push(ws.data);
+      console.log(ws.data.name + ' joined');
 
       let playerCount = 0;
       wss.clients.forEach(function each(client) {
@@ -317,7 +317,7 @@ wss.on('connection', function connection(ws) {
       });
       if (state.monitor) {
         state.monitor.send('P' + playerCount);
-        state.monitor.send('J' + data.nick);
+        state.monitor.send('J' + ws.data.name);
       }
       ws.send('cookie:' + ws.data.cookie);
     }
