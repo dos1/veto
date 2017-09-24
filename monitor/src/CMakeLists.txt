@@ -17,6 +17,8 @@ if (APPLE)
 		MACOSX_PACKAGE_LOCATION "Resources")
 endif(APPLE)
 
+include_directories(${LIBWEBSOCKETS_INCLUDE_DIR})
+
 add_libsuperderpy_target(${EXECUTABLE_SRC_LIST})
 target_link_libraries(${EXECUTABLE} libsuperderpy "libsuperderpy-${LIBSUPERDERPY_GAMENAME}")
 install(TARGETS ${EXECUTABLE} DESTINATION ${BIN_INSTALL_DIR})
