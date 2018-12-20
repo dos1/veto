@@ -31,6 +31,10 @@ static int WebSocketCallback(struct lws* wsi, enum lws_callback_reasons reason, 
 	struct Game* game = user;
 	ALLEGRO_EVENT ev;
 
+	if (reason == LWS_CALLBACK_PROTOCOL_INIT) {
+		return 0;
+	}
+
 	if (!game || !game->data->ws) {
 		return 1; // disconnect
 	}
@@ -78,8 +82,8 @@ static int WebSocketCallback(struct lws* wsi, enum lws_callback_reasons reason, 
 }
 
 static struct lws_protocols protocols[] = {
-  {.name = "veto", .callback = WebSocketCallback, .rx_buffer_size = 64},
-  {.callback = NULL} /* terminator */
+	{.name = "veto", .callback = WebSocketCallback, .rx_buffer_size = 64},
+	{.callback = NULL} /* terminator */
 };
 
 static void VetoProtocolHandler(struct Game* game, char* msg, int len) {
@@ -260,10 +264,9 @@ void WebSocketConnect(struct Game* game) {
 		return;
 	}
 
-	lws_set_log_level(1 | 2, NULL); // ERR | WARN
+	lws_set_log_level(LLL_ERR | LLL_WARN, NULL); // ERR | WARN
 
-	struct lws_context_creation_info info;
-	memset(&info, 0, sizeof(info));
+	struct lws_context_creation_info info = {};
 
 	info.port = CONTEXT_PORT_NO_LISTEN;
 	info.protocols = protocols;
